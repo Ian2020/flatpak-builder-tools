@@ -110,7 +110,7 @@ class NpmLockfileProvider(LockfileProvider):
             source: PackageSource
             package_json_path = lockfile.parent / install_path / 'package.json'
             if (
-                'node_modules' not in package_json_path.parents
+                Path('node_modules') not in package_json_path.parents
                 and package_json_path.exists()
             ):
                 source = LocalSource(path=install_path)
