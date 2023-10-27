@@ -124,10 +124,13 @@ class NpmLockfileProvider(LockfileProvider):
                         integrity=integrity, resolved=info['resolved']
                     )
                 elif resolved_url.scheme.startswith('git+'):
-                    raise NotImplementedError(
-                        'Git sources in lockfile v2 format are not supported yet'
-                        f' (package {install_path} in {lockfile})'
-                    )
+                    print(f"Calling with {info}")
+                    # FROM needs to be what is in package.json
+                    # but we only have what's in lockfile
+                    # OR parse_git_source needs to do more work
+                    # in v3 all we have is resolved!!
+                    source = self.parse_git_source(info['resolved'])
+                    print(f"souce: {source}")
             else:
                 raise NotImplementedError(
                     f"Don't know how to handle package {install_path} in {lockfile}"
@@ -457,14 +460,30 @@ class NpmModuleProvider(ModuleProvider):
                     GIT_URL_PREFIX = 'git+'
 
                     new_version = f'{path}#{source.commit}'
-                    assert source.from_ is not None
-                    data['package.json'][source.from_] = new_version
-                    data['package-lock.json'][source.original] = new_version
+                    if source.from_ is not None:
+                        data['package.json'][source.from_] = new_version
 
-                    if source.from_.startswith(GIT_URL_PREFIX):
-                        data['package.json'][
-                            source.from_[len(GIT_URL_PREFIX) :]
-                        ] = new_version
+                        if source.from_.startswith(GIT_URL_PREFIX):
+                            data['package.json'][
+                                source.from_[len(GIT_URL_PREFIX) :]
+                            ] = new_version
+                    else:
+                        data['package.json'][source.original] = new_version
+                        data['package.json'][source.original.replace("#" + source.commit,
+                                                                     "")] = new_version
+
+                        if source.original.startswith(GIT_URL_PREFIX):
+                            data['package.json'][
+                                source.original[len(GIT_URL_PREFIX) :]
+                            ] = new_version
+                            data['package.json'][
+                                source.original[len(GIT_URL_PREFIX)
+                                                :].replace("#" + source.commit,
+                                                           "")
+                            ] = new_version
+                        print(f"ARGG {data['package.json']}")
+
+                    data['package-lock.json'][source.original] = new_version
 
                     if source.original.startswith(GIT_URL_PREFIX):
                         data['package-lock.json'][
