@@ -21,8 +21,6 @@ _GIT_SCHEMES: Dict[str, Dict[str, str]] = {
 
 
 class LockfileProvider:
-    # TODO: Why is from_ allowed to be optional when its asserts no none in
-    # npm.py:459?
     def parse_git_source(self, version: str, from_: Optional[str] = None) -> GitSource:
         # https://github.com/microsoft/pyright/issues/1589
         # pyright: reportPrivateUsage=false
@@ -38,27 +36,11 @@ class LockfileProvider:
             new_url = new_url._replace(netloc=path[0], path='/'.join(path[1:]))
         # Replace https://git@github.com:ianstormtaylor/to-camel-case.git
         # wth     https://git@github.com/ianstormtaylor/to-camel-case.git
-        # effects git+ssh URLs
+        # for git+ssh URLs
         if ":" in new_url.netloc:
             netloc_split = new_url.netloc.split(":")
             new_url = new_url._replace(netloc=netloc_split[0],
                                        path=f"/{netloc_split[1]}{new_url.path}")
-
-
-        # TODO: if from_ is empty we have to populate it by decoding version
-        # Need to get to e.g. https://git@github.com/supershabam/nop.git
-        # from version=git+https://git@github.com/supershabam/nop.git#f110e75f62cfe3bf4468ac3b74e3dc72ab9ae4bf
-        #if from_ is None:
-            # For packagelock v3 there is no 'from' field. Instead we must
-            # generate the right value.
-
-            # Two versions, depending on whether we have a commit hash or not
-            #print(f"FRAMGE {original_url.fragment}")
-            #if original_url.fragment:
-            #    from_ = version
-            #else:
-            #    from_ = "git+" + new_url.geturl()
-            #print(f"HAHAHAHA {from_}")
 
         return GitSource(
             original=original_url.geturl(),

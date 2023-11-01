@@ -75,9 +75,7 @@ class NpmLockfileProvider(LockfileProvider):
                 if match is not None:
                     from_ = from_[match.end('prefix') :]
 
-                print(f"Calling with {info}")
                 source = self.parse_git_source(version, from_)
-                print(f"souce: {source}")
             elif version_url.scheme == 'file':
                 source = LocalSource(path=version_url.path)
             else:
@@ -126,13 +124,7 @@ class NpmLockfileProvider(LockfileProvider):
                         integrity=integrity, resolved=info['resolved']
                     )
                 elif resolved_url.scheme.startswith('git+'):
-                    print(f"Calling with {info}")
-                    # FROM needs to be what is in package.json
-                    # but we only have what's in lockfile
-                    # OR parse_git_source needs to do more work
-                    # in v3 all we have is resolved!!
                     source = self.parse_git_source(info['resolved'])
-                    print(f"souce: {source}")
             else:
                 raise NotImplementedError(
                     f"Don't know how to handle package {install_path} in {lockfile}"
@@ -156,7 +148,6 @@ class NpmLockfileProvider(LockfileProvider):
     def process_lockfile(self, lockfile: Path) -> Iterator[Package]:
         with open(lockfile) as fp:
             data = json.load(fp)
-            print(f"DATAARG {data}")
 
         # TODO Once lockfile v2 syntax support is complete, use _process_packages_v2
         # for both v2 and v2 lockfiles
@@ -463,21 +454,15 @@ class NpmModuleProvider(ModuleProvider):
                     GIT_URL_PREFIX = 'git+'
 
                     new_version = f'{path}#{source.commit}'
-                    print(f"ARG source.from_: {source.from_}")
-                    print(f"ARG new_version: {new_version}")
-    
-                    result = source.from_ or source.original
+                    target = source.from_ or source.original
+                    # Fix ssh URLs, npm uses a colon before first path segment
+                    if (target.startswith(GIT_URL_PREFIX+"ssh") and
+                       ":" not in urllib.parse.urlparse(target).netloc):
+                        target = re.sub(r'(://[^/]+)/', r'\1:', target)
 
-                    if (result.startswith(GIT_URL_PREFIX+"ssh") and
-                       ":" not in urllib.parse.urlparse(result).netloc):
-                        print(f"GOTCHA: {result}")
-                        result = re.sub(r'(://[^/]+)/', r'\1:', result)
-
-                    data['package.json'][result] = new_version
-                    data['package.json'][result.replace("#" + source.commit,
+                    data['package.json'][target] = new_version
+                    data['package.json'][target.replace("#" + source.commit,
                                                         "")] = new_version
-
-                    print(f"ARGG {data['package.json']}")
 
                     data['package-lock.json'][source.original] = new_version
 
