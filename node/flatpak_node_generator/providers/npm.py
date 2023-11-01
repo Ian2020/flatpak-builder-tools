@@ -466,30 +466,16 @@ class NpmModuleProvider(ModuleProvider):
                     print(f"ARG source.from_: {source.from_}")
                     print(f"ARG new_version: {new_version}")
     
-                    # NEED TO TIDY BEFORE WE GO FURTHER
-                    # WE ARE REALLY JUST CHOOSING INDEX(ES)
-                    result = []
+                    result = source.from_ or source.original
 
-                    if source.from_ is not None:
-                        result.append(source.from_)
+                    if (result.startswith(GIT_URL_PREFIX+"ssh") and
+                       ":" not in urllib.parse.urlparse(result).netloc):
+                        print(f"GOTCHA: {result}")
+                        result = re.sub(r'(://[^/]+)/', r'\1:', result)
 
-                        if source.from_.startswith(GIT_URL_PREFIX):
-                            result.append(source.from_[len(GIT_URL_PREFIX) :] )
-                    else:
-                        result.append(source.original)
-                        result.append(source.original.replace("#" + source.commit, ""))
-
-                        if source.original.startswith(GIT_URL_PREFIX):
-                            result.append(source.original[len(GIT_URL_PREFIX) :] )
-                            result.append(source.original[len(GIT_URL_PREFIX) :].replace("#" + source.commit, "") )
-
-                    for thing in result:
-                        if (thing.startswith(GIT_URL_PREFIX+"ssh") and
-                           ":" not in urllib.parse.urlparse(thing).netloc):
-                            print(f"GOTCHA: {thing}")
-                            thing = re.sub(r'(://[^/]+)/', r'\1:', thing)
-
-                        data['package.json'][thing] = new_version
+                    data['package.json'][result] = new_version
+                    data['package.json'][result.replace("#" + source.commit,
+                                                        "")] = new_version
 
                     print(f"ARGG {data['package.json']}")
 
