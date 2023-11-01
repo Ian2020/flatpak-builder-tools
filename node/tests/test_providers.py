@@ -26,6 +26,24 @@ async def test_minimal_git(
     )
 
 
+async def test_git(
+    flatpak_builder: FlatpakBuilder,
+    provider_factory_spec: ProviderFactorySpec,
+    node_version: int,
+) -> None:
+    with ManifestGenerator() as gen:
+        await provider_factory_spec.generate_modules('git', gen, node_version)
+
+    flatpak_builder.build(
+        sources=itertools.chain(gen.ordered_sources()),
+        commands=[
+            provider_factory_spec.install_command,
+            """node -e 'require("to-camel-case");require("to-capital-case");require("to-no-case");require("to-space-case");'""",
+        ],
+        use_node=node_version,
+    )
+
+
 async def test_local(
     flatpak_builder: FlatpakBuilder,
     provider_factory_spec: ProviderFactorySpec,

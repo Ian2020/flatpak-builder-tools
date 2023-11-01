@@ -75,7 +75,9 @@ class NpmLockfileProvider(LockfileProvider):
                 if match is not None:
                     from_ = from_[match.end('prefix') :]
 
+                print(f"Calling with {info}")
                 source = self.parse_git_source(version, from_)
+                print(f"souce: {source}")
             elif version_url.scheme == 'file':
                 source = LocalSource(path=version_url.path)
             else:
@@ -154,6 +156,7 @@ class NpmLockfileProvider(LockfileProvider):
     def process_lockfile(self, lockfile: Path) -> Iterator[Package]:
         with open(lockfile) as fp:
             data = json.load(fp)
+            print(f"DATAARG {data}")
 
         # TODO Once lockfile v2 syntax support is complete, use _process_packages_v2
         # for both v2 and v2 lockfiles
@@ -460,28 +463,35 @@ class NpmModuleProvider(ModuleProvider):
                     GIT_URL_PREFIX = 'git+'
 
                     new_version = f'{path}#{source.commit}'
+                    print(f"ARG source.from_: {source.from_}")
+                    print(f"ARG new_version: {new_version}")
+    
+                    # NEED TO TIDY BEFORE WE GO FURTHER
+                    # WE ARE REALLY JUST CHOOSING INDEX(ES)
+                    result = []
+
                     if source.from_ is not None:
-                        data['package.json'][source.from_] = new_version
+                        result.append(source.from_)
 
                         if source.from_.startswith(GIT_URL_PREFIX):
-                            data['package.json'][
-                                source.from_[len(GIT_URL_PREFIX) :]
-                            ] = new_version
+                            result.append(source.from_[len(GIT_URL_PREFIX) :] )
                     else:
-                        data['package.json'][source.original] = new_version
-                        data['package.json'][source.original.replace("#" + source.commit,
-                                                                     "")] = new_version
+                        result.append(source.original)
+                        result.append(source.original.replace("#" + source.commit, ""))
 
                         if source.original.startswith(GIT_URL_PREFIX):
-                            data['package.json'][
-                                source.original[len(GIT_URL_PREFIX) :]
-                            ] = new_version
-                            data['package.json'][
-                                source.original[len(GIT_URL_PREFIX)
-                                                :].replace("#" + source.commit,
-                                                           "")
-                            ] = new_version
-                        print(f"ARGG {data['package.json']}")
+                            result.append(source.original[len(GIT_URL_PREFIX) :] )
+                            result.append(source.original[len(GIT_URL_PREFIX) :].replace("#" + source.commit, "") )
+
+                    for thing in result:
+                        if (thing.startswith(GIT_URL_PREFIX+"ssh") and
+                           ":" not in urllib.parse.urlparse(thing).netloc):
+                            print(f"GOTCHA: {thing}")
+                            thing = re.sub(r'(://[^/]+)/', r'\1:', thing)
+
+                        data['package.json'][thing] = new_version
+
+                    print(f"ARGG {data['package.json']}")
 
                     data['package-lock.json'][source.original] = new_version
 
