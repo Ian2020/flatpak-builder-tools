@@ -416,75 +416,58 @@ class NpmModuleProvider(ModuleProvider):
         )
 
         if self.git_sources:
-            # Generate jq scripts to patch the package*.json files.
-            scripts = {
-                'package.json': r"""
-                    walk(
-                        if type == "object"
-                        then
-                            to_entries | map(
-                                if (.value | type == "string") and $data[.value]
-                                then .value = "git+file:\($buildroot)/\($data[.value])"
-                                else .
-                                end
-                            ) | from_entries
-                        else .
-                        end
-                    )
-                """,
-                'package-lock.json': r"""
-                    walk(
-                        if type == "object" and (.version | type == "string") and $data[.version]
-                        then
-                            .version = "git+file:\($buildroot)/\($data[.version])"
-                        else .
-                        end
-                    )
-                """,
-            }
+            # Generate jq script to patch the package.json file
+            script = r"""
+                        walk(
+                            if type == "object"
+                            then
+                                to_entries | map(
+                                    if (.value | type == "string") and $data[.value]
+                                    then .value = "git+file:\($buildroot)/\($data[.value])"
+                                    else .
+                                    end
+                                ) | from_entries
+                            else .
+                            end
+                        )
+                    """
 
             for lockfile, sources in self.git_sources.items():
                 prefix = self.relative_lockfile_dir(lockfile)
-                data: Dict[str, Dict[str, str]] = {
-                    'package.json': {},
-                    'package-lock.json': {},
-                }
+                data: Dict[str, str] = {}
 
                 for path, source in sources.items():
                     GIT_URL_PREFIX = 'git+'
 
                     new_version = f'{path}#{source.commit}'
-                    target = source.from_ or source.original
-                    # Fix ssh URLs, npm uses a colon before first path segment
-                    if (target.startswith(GIT_URL_PREFIX+"ssh") and
-                       ":" not in urllib.parse.urlparse(target).netloc):
-                        target = re.sub(r'(://[^/]+)/', r'\1:', target)
+                    targets = []
+                    source_url = source.from_ or source.original
 
-                    data['package.json'][target] = new_version
-                    data['package.json'][target.replace("#" + source.commit,
-                                                        "")] = new_version
+                    if (source_url.startswith(GIT_URL_PREFIX+"ssh") and
+                       ":" not in urllib.parse.urlparse(source_url).netloc):
+                        source_url = re.sub(r'(://[^/]+)/', r'\1:', source_url)
+                    elif source_url.startswith(GIT_URL_PREFIX):
+                        targets.append(source_url[len(GIT_URL_PREFIX) :])
 
-                    data['package-lock.json'][source.original] = new_version
+                    targets.append(source_url)
+                    for t in targets:
+                        data[t] = new_version
+                        data[t.replace("#" + source.commit, "")] = new_version
 
-                    if source.original.startswith(GIT_URL_PREFIX):
-                        data['package-lock.json'][
-                            source.original[len(GIT_URL_PREFIX) :]
-                        ] = new_version
-
-                for filename, script in scripts.items():
-                    target = Path('$FLATPAK_BUILDER_BUILDDIR') / prefix / filename
-                    script = (
-                        textwrap.dedent(script.lstrip('\n')).strip().replace('\n', '')
-                    )
-                    json_data = json.dumps(data[filename])
-                    patch_commands[lockfile].append(
-                        'jq'
-                        ' --arg buildroot "$FLATPAK_BUILDER_BUILDDIR"'
-                        f' --argjson data {shlex.quote(json_data)}'
-                        f' {shlex.quote(script)} {target}'
-                        f' > {target}.new'
-                    )
-                    patch_commands[lockfile].append(f'mv {target}{{.new,}}')
+                filename = "package.json"
+                target = Path('$FLATPAK_BUILDER_BUILDDIR') / prefix / filename
+                script = (
+                    textwrap.dedent(script.lstrip('\n')).strip().replace('\n', '')
+                )
+                json_data = json.dumps(data)
+                patch_commands[lockfile].append(
+                    'jq'
+                    ' --arg buildroot "$FLATPAK_BUILDER_BUILDDIR"'
+                    f' --argjson data {shlex.quote(json_data)}'
+                    f' {shlex.quote(script)} {target}'
+                    f' > {target}.new'
+                )
+                patch_commands[lockfile].append(f'mv {target}{{.new,}}')
 
         patch_all_commands: List[str] = []
         for lockfile in self.all_lockfiles:
