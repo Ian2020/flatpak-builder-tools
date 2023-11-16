@@ -447,17 +447,38 @@ class NpmModuleProvider(ModuleProvider):
 
                     new_version = f'{path}#{source.commit}'
                     targets = []
-                    source_url = source.from_ or source.original
+                    source_url = urllib.parse.urlparse(source.from_ or source.original)
+
+                    # https://github.com/npm/hosted-git-info
+                    hosted_git = [
+                        ('@github.com', 'github'),
+                        ('@bitbucket.org', 'bitbucket'),
+                        ('@gitlab.com', 'gitlab'),
+                        ('@gist.github.com', 'gist'),
+                        ('@git.sr.ht', 'sourcehut'),
+                    ]
+                    for domain, shortcut in hosted_git:
+                        if domain in source_url.netloc.lower():
+                            targets.append(
+                                f"{shortcut}:{source_url.path[1:].replace('.git', '')}"
+                                f'#{source_url.fragment}'
+                            )
+                            break
 
                     if (
-                        source_url.startswith(GIT_URL_PREFIX + 'ssh')
-                        and ':' not in urllib.parse.urlparse(source_url).netloc
+                        source_url.scheme.startswith(GIT_URL_PREFIX + 'ssh')
+                        and ':' not in source_url.netloc
                     ):
-                        source_url = re.sub(r'(://[^/]+)/', r'\1:', source_url)
-                    elif source_url.startswith(GIT_URL_PREFIX):
-                        targets.append(source_url[len(GIT_URL_PREFIX) :])
+                        path_match = re.compile(r'^/([^/]+)(.*)').match(source_url.path)
+                        if path_match:
+                            parent, child = path_match.groups()
+                            source_url = source_url._replace(
+                                netloc=f'{source_url.netloc}:{parent}', path=child
+                            )
+                    elif source_url.scheme.startswith(GIT_URL_PREFIX):
+                        targets.append(source_url.geturl()[len(GIT_URL_PREFIX) :])
 
-                    targets.append(source_url)
+                    targets.append(source_url.geturl())
                     for t in targets:
                         data[t] = new_version
                         data[t.replace('#' + source.commit, '')] = new_version
