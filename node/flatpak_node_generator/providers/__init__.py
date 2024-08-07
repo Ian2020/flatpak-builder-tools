@@ -35,7 +35,7 @@ class LockfileProvider:
             path = new_url.path.split('/')
             new_url = new_url._replace(netloc=path[0], path='/'.join(path[1:]))
         # Replace https://git@github.com:ianstormtaylor/to-camel-case.git
-        # wth     https://git@github.com/ianstormtaylor/to-camel-case.git
+        # with    https://git@github.com/ianstormtaylor/to-camel-case.git
         # for git+ssh URLs
         if ':' in new_url.netloc:
             netloc_split = new_url.netloc.split(':')
