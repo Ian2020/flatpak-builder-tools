@@ -423,7 +423,7 @@ class NpmModuleProvider(ModuleProvider):
                             then
                                 to_entries | map(
                                     if (.value | type == "string") and $data[.value]
-                                    then .value = "git+file:\($buildroot)/\($data[.value])"
+                                    then .value = "git+file://\($buildroot)/\($data[.value])"
                                     else .
                                     end
                                 ) | from_entries
